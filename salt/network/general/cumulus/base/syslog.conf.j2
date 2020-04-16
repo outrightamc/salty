@@ -1,0 +1,3 @@
+{%- for host in syslog_servers %}
+*.*   @{{ host }}:514   # UDP
+{%- endfor %}

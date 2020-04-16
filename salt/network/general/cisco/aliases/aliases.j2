@@ -1,0 +1,13 @@
+{%- if grains.os == "ios" %}
+{%- for alias in aliases %}
+alias exec {{ alias.name }} {{ alias.cmd }}
+{%- endfor %}
+!
+!
+end
+{%- elif "nxos" in grains.os %}
+{%- for alias in aliases %}
+cli alias name {{ alias.name }} {{ alias.cmd }}
+{%- endfor %}
+
+{%- endif %}

@@ -1,0 +1,10 @@
+{% if grains.os == "junos" %}
+system {
+    replace: services {
+        ssh;
+        netconf {
+            ssh;
+        }
+    }
+}
+{% endif %}

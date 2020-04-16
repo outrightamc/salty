@@ -1,0 +1,36 @@
+{%- if grains.os|lower == "ios" %}
+ {%- for vid, vconf in vlans.items() %}
+  {%- if vconf.state is defined and vconf.state == "absent" %}
+no vlan {{ vid }}
+  {%- else %}
+vlan {{ vid }}
+ name {{ vconf.name }}
+!
+  {%- endif %}
+ {%- endfor %}
+!
+end
+{%- elif grains.os|lower == "junos" %}
+vlans {
+ {%- for vid, vconf in vlans.items() %}
+  {%- if vconf.state is defined and vconf.state == "absent" %}
+    delete: {{ vconf.name }};
+  {%- else %}
+    {{ vconf.name }} {
+        vlan-id {{ vid }};
+    }
+  {%- endif %}
+ {%- endfor %}
+}
+protocols {
+    vstp {
+ {%- for vid, vconf in vlans.items() %}
+  {%- if vconf.state is defined and vconf.state == "absent" %}
+        delete: vlan {{ vid }};
+  {%- else %}
+        vlan {{ vid }};
+  {%- endif %}
+ {%- endfor %}
+    }
+}
+{%- endif %}

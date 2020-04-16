@@ -1,0 +1,9 @@
+{%- if grains.os == "ios" %}
+{%- for privilege in privileges %}
+privilege exec level 0 {{ privilege }}
+{%- endfor %}
+!
+!
+end
+
+{%- endif %}

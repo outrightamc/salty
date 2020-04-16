@@ -1,0 +1,131 @@
+{# IXAG CONFIGURATION #}
+{% if 'ixag' in grains.id %}
+    {# IXAG VLANS #}
+    {% for edge in mcc_edge_vlans %}
+        {% if grains.id in edge.local_minions %}
+            {% for vlan in edge.vlan_ids %}
+vlan {{ vlan.vlan_id }}
+ name {{ vlan.name }}       
+            {% endfor %}
+        {% endif %}
+    {% endfor %}
+    {# IXAG VLANS END #}
+!
+    {# IXAG UPLINKS #}
+    {% for itf in mcc_edge_interfaces %}
+        {% if itf.minion == grains.id %}
+interface {{ itf.uplink }}
+ description {{ itf.description }}
+ switchport
+ switchport trunk encapsulation dot1q
+ switchport trunk allowed vlan {{ itf.vlans }}
+ switchport mode trunk
+ logging event link-status
+ load-interval 30
+            {% if itf.nonegotiate is defined %}
+ speed nonegotiate
+            {% endif %}
+ no cdp enable
+        {% endif %}
+    {% endfor %}
+    {# IXAG UPLINKS END #}
+{% endif %}
+{# IXAG CONFIGURATION END#}
+
+{# IXRT CONFIGURATION #}
+{% if 'ixrt' in grains.id %}
+    {# IXRT VRF #}
+    {% for vrf in mcc_ixrt_vrfs %}
+        {% if grains.id in vrf.local_minions %}
+            {% for vrf_id in vrf.vrf_ids %}
+vrf definition VRF_MCC_{{ vrf_id }}
+  rd {{ mcc_rd_loopbacks[grains.id] }}:{{ vrf_id }}
+  route-target export 53550:{{ vrf_id }}
+  route-target import 53550:{{ vrf_id }}
+ !
+ address-family ipv4
+ exit-address-family
+            {% endfor %}       
+        {% endif %}
+    {% endfor %}
+    {# IXRT VRF END #}
+! 
+{# IXRT WAN INTERFACE #}
+{% for itf in mcc_ixrt_interfaces %}
+    {% if itf.minion == grains.id %}
+interface {{ itf.wan_phy_itf }}.{{ itf.wan_vlan_id }}
+ description {{ itf.wan_description }}
+ encapsulation dot1Q {{ itf.wan_vlan_id }}
+ vrf forwarding VRF_MCC_{{ itf.vrf_id }}
+ ip address {{ itf.wan_ip['ip'] }} {{ itf.wan_ip['mask'] }}
+ ip flow monitor Scrutinizer-FMM sampler Scrutinizer-SM input
+ ip flow monitor Scrutinizer-FMM sampler Scrutinizer-SM output
+ bfd interval 999 min_rx 999 multiplier 30
+    {% if itf.policer is defined %}
+ service-policy input {{ itf.policer }}
+    {% endif %}
+!
+{# IXRT WAN INTERFACE END #} 
+{# IXRT LAN INTERFACE  #} 
+interface {{ itf.lan_phy_itf }}.{{ itf.lan_vlan_id }}
+ description {{ itf.lan_description }}
+ encapsulation dot1Q {{ itf.lan_vlan_id }}
+ vrf forwarding VRF_MCC_{{ itf.vrf_id }}
+ ip address {{ itf.lan_ip['ip'] }} {{ itf.lan_ip['mask'] }}
+ standby version 2
+ standby {{ itf.lan_vlan_id }} ip 192.168.1.1
+        {% if itf.hsrp['priority'] is defined %}
+ standby {{ itf.lan_vlan_id }} priority {{ itf.hsrp['priority'] }}
+        {% endif %}
+        {% if itf.hsrp['preempt'] is defined %}
+ standby {{ itf.lan_vlan_id }} preempt
+        {% endif %}
+{# IXRT LAN INTERFACE END #} 
+    {% endif %}
+{% endfor %}
+!
+{# IXRT BGP #} 
+router bgp 53550
+!
+{% for vrf in mcc_ixrt_bgp %}
+    {% if vrf.minion == grains.id %}
+ address-family ipv4 vrf VRF_MCC_{{ vrf.vrf_id }}
+        {% if vrf.lan_network is defined %}
+  network 192.168.1.0 mask 255.255.255.248
+        {% endif %}
+  neighbor {{ vrf.neighbor }} remote-as 18486
+  neighbor {{ vrf.neighbor }} fall-over bfd
+  neighbor {{ vrf.neighbor }} activate
+  neighbor {{ vrf.neighbor }} soft-reconfiguration inbound
+  neighbor {{ vrf.neighbor }} route-map {{ vrf.route_map['name'] }} {{ vrf.route_map['direction'] }}
+         {% if vrf.maxprefix is defined %}
+  neighbor {{ vrf.neighbor }} maximum-prefix {{ vrf.maxprefix }} warning-only
+         {% endif %}
+ exit-address-family
+    {% endif %}
+{% endfor %}
+{# IXRT BGP END #} 
+!
+{# IXRT ROUTE-MAP #}
+{% if grains.id in mcc_ixrt_lp.IM %}
+route-map IM_MCC_V4 permit 10
+{% elif grains.id in mcc_ixrt_lp.EX %}
+route-map EX_MCC_V4 permit 10
+{% endif %}
+{% if grains.id in mcc_ixrt_lp.IM %}
+ set local-preference {{ mcc_ixrt_lp.increased_lp }}
+{% else %}
+ set as-path prepend 53550
+{% endif %}
+{# IXRT ROUTE-MAP END#}
+{# IXRT POLICER #}
+policy-map POLICER_20M
+ class class-default
+  police 20971520 conform-action transmit exceed-action drop
+!
+policy-map POLICER_30M
+ class class-default
+  police 31457280 conform-action transmit exceed-action drop 
+{# IXRT POLICER END #} 
+{% endif %}
+{# IXRT CONFIGURATION END#}

@@ -1,0 +1,141 @@
+replace: protocols {
+    mpls {
+        {%- for itf in protocols.mpls_interfaces %}
+        interface {{ itf.name }};
+        {%- endfor %}
+    }
+    bgp {
+        log-updown;    
+        {% if protocols.IXRT_grp is defined %}
+        {% if protocols.IXRT_grp.state is defined and protocols.IXRT_grp.state == 'inactive' %}        
+        inactive: group IXRT_V4 {
+        {% else %}
+        group IXRT_V4 {
+        {% endif %}
+            local-address {{ routing_options.router_id }};
+            family inet-vpn {
+                unicast;
+            }
+            authentication-key "$9$33XCn6Cp0IcyevW7Vws4of5Q39A"; ## SECRET-DATA
+            export PS_EXP_IXRT_V4;
+            vpn-apply-export;
+            peer-as 53550;
+            {% for ixrt in protocols.IXRT %}
+            neighbor {{ ixrt.ip }} {
+                description {{ ixrt.descr }};
+            }
+            {% endfor %}
+        }
+        {% endif %}
+        {% if protocols.BL_TO_BL is defined %}
+        {% if protocols.BL_TO_BL.state == 'inactive' %}
+        inactive: group BL_TO_BL_V4 {
+        {% else %}
+        group BL_TO_BL_V4 {
+        {% endif %}            
+            description "intra-DC PE routers";
+            local-address {{ routing_options.router_id }};
+            family inet-vpn {
+                unicast;
+            }
+            authentication-key "$9$33XCn6Cp0IcyevW7Vws4of5Q39A"; ## SECRET-DATA
+            peer-as 53550;
+            neighbor {{ protocols.BL_TO_BL.ip }} {
+                description {{ protocols.BL_TO_BL.descr }};
+            }
+        }
+        {% endif %}
+        {% if protocols.BORDER_grp is defined %}
+        {% if protocols.BORDER_grp.state == 'inactive' %}          
+        inactive: group BORDER_V4 {
+        {% else %}
+        group BORDER_V4 {        
+        {% endif %}
+            description "inter-DC PE routers";
+            local-address {{ routing_options.router_id }};
+            family inet-vpn {
+                unicast;
+            }
+            authentication-key "$9$33XCn6Cp0IcyevW7Vws4of5Q39A"; ## SECRET-DATA
+            export PS_EXP_BORDER_V4;
+            vpn-apply-export;
+            peer-as 53550;
+            {% for border in protocols.BORDER %}
+            {% if border.ip != routing_options.router_id %}
+            neighbor {{ border.ip }} {
+                description {{ border.descr }};
+            }
+            {% endif %}
+            {% endfor %}
+        }
+        {% endif %}
+        {% if protocols.CE_grp is defined %}
+        {% if protocols.CE_grp.state == 'inactive' %}          
+        inactive: group CE_V4 {
+        {% else %}
+        group CE_V4 {        
+        {% endif %}
+            type internal;
+            log-updown;
+            family inet-vpn {
+                unicast;
+            }
+            family route-target {
+                advertise-default;
+            }
+            authentication-key "$9$33XCn6Cp0IcyevW7Vws4of5Q39A"; ## SECRET-DATA
+            export PS_EXP_CE_V4;
+            vpn-apply-export;
+            cluster {{ protocols.CE_grp.rr_cluster_id }};
+            peer-as 53550;
+            {% for ce in protocols.CE_grp.neighbors %}
+            neighbor {{ ce.ip }} {
+                description {{ ce.descr }};
+            }
+            {% endfor %}
+        }
+        {% endif %}
+    }
+    ospf {
+        traceoptions {
+            file ospf.trace;
+            flag all;
+        }
+        {% if protocols.ospf_overload == 'enable' %}
+        overload;
+        {% endif %}
+        reference-bandwidth 100g;
+        area 0.0.0.0 {
+            interface lo0.0 {
+                passive;
+            }
+            {% for itf in protocols.mpls_interfaces %}
+            interface {{ itf.name }} {
+                interface-type p2p;
+                {% if itf.metric is defined %}
+                metric {{ itf.metric }};
+                {% endif %}
+                {% if itf.passive is defined %}
+                passive;
+                {% endif %}
+                ldp-synchronization;
+                hello-interval 1;
+                dead-interval 3;
+                authentication {
+                    md5 1 key "$9$VTbw2oJDk.fTz/tu0IRXxNVYg"; ## SECRET-DATA
+                }
+            }
+            {% endfor %}
+        }
+    }
+    ldp {
+        {% for itf in protocols.mpls_interfaces %}
+        interface {{ itf.name }};
+        {% endfor %}
+    }
+    lldp {
+        port-id-subtype interface-name;
+        port-description-type interface-description;
+        interface all;
+    }
+}

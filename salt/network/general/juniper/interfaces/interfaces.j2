@@ -1,0 +1,104 @@
+{% if grains.os == "junos" %}
+{% if grains.model == "MX204" %}
+{% if rpm is defined and rpm|length %}
+services {
+    {% if rpm is defined %}
+    replace: rpm {
+    {% for rpm_owner in rpm %}
+        probe {{ rpm_owner.owner|upper }} {
+            {% for probe in rpm_owner.probes %}
+            test {{ grains.hostname|upper~'_'~probe.dst_hostname|upper }} {
+                probe-type icmp-ping-timestamp;
+                target address {{ probe.dst_ip }};
+                probe-count 3;
+                probe-interval 1;
+                test-interval 10;
+                source-address {{ probe.src_ip }};
+                data-size 64;
+                thresholds {
+                    successive-loss 3;
+                }
+                one-way-hardware-timestamp;
+            }
+            {% endfor %}
+        }
+    }
+    {% endfor %}
+    {% endif %}
+}
+{% endif %}
+replace: interfaces {
+    {% for itf in interfaces %}
+    {{ itf.name }} {
+        {% if itf.unit is defined %}
+            {% if itf.unit.id > 0 and itf.name != 'lo0' %}
+        vlan-tagging;
+            {% endif %}
+        {% endif %}
+        {% if itf.name != 'lo0' %}
+        description {{ itf.descr }};
+        {% endif %}
+        {# disable interface in pillar #}
+        {% if itf.state is defined and itf.state == 'disable' %}
+        {{ itf.state }};
+        {% endif %}
+        {# configure MTU #}
+        {% if itf.mtu is defined %}
+        mtu {{ itf.mtu }};
+        {% endif %}
+        {% if itf.lacp is defined %}
+        {# On an EX series device, the speed is set under ether-options,
+        while on an MX series device, the speed is set under gigether-options #}
+        gigether-options {
+            802.3ad {{ itf.lacp }};
+        }
+        {% endif %}
+        {% if itf.speed1g is defined %}
+        gigether-options {
+            no-auto-negotiation;
+            speed 1g;
+        }
+        {% endif %}
+        {% if itf.name.startswith('ae') %}
+        aggregated-ether-options {
+            lacp {
+                active;
+                periodic fast;
+            }
+        }
+        {% endif %}
+        {% if itf.unit is defined %}
+        unit {{ itf.unit.id }} {
+            {% if itf.unit.id is defined %}
+            {% if itf.unit.id > 0 and itf.name != 'lo0' %}
+            vlan-id {{ itf.unit.id }};
+            {% endif %}
+            {% if itf.name == 'lo0' %}
+            description {{ itf.descr }};
+            {% endif %}
+            {% endif %}
+            family inet {
+                address {{ itf.unit.address }};
+                {% if itf.unit.mtu is defined %}
+                mtu {{ itf.unit.mtu }};
+                {% endif %}
+            }
+            {% if itf.unit.mpls is defined and itf.unit.mpls == true %}
+            family mpls;
+            {% endif %}
+            {%- if itf.unit.tunnel is defined %}
+            tunnel {
+                source {{ itf.unit.tunnel.source }};
+                destination {{ itf.unit.tunnel.destination }};
+                routing-instance {
+                    destination {{ itf.unit.tunnel.routing_instance.destination }};
+                }
+            }
+            {%- endif %}
+        }
+        {% endif %}
+    }
+    {% endfor %}
+}
+{% endif %}
+{% endif %}

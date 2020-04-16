@@ -1,0 +1,11 @@
+{% if grains.os == "junos" %} 
+system {
+    replace: processes {
+        {% if processes.disable is defined %}
+        {% for service in processes.disable %}
+        {{ service }} disable;
+        {%- endfor %}
+        {% endif %}
+    }
+}
+{% endif %}

@@ -1,0 +1,209 @@
+{%- set trap = snmp.trap_groups[region].get(dc, snmp.trap_groups[region]['default']) %}
+{%- if grains.os == "ios" -%}
+
+no access-list 1485
+{%- for h in snmp.clients %}
+access-list 1485 permit {{ h }}
+{%- endfor %}
+!
+{%- set cmd = 'show run | i snmp-server' %}
+{%- set existing_config = salt.net.cli(cmd)['out'][cmd] %}
+{%- if existing_config != "" %}
+  {%- for l in existing_config.split('\n') %}
+no {{ l }}
+  {%- endfor %}
+{%- endif %}
+!
+snmp-server contact {{ snmp.contact }}
+snmp-server location {{ region }}-{{ dc }}
+!
+{%- for c, conf in snmp.community.items() %}
+snmp-server community {{ c }} {{ conf.mode }} 1485
+{%- endfor %}
+!
+{%- for c, hosts in trap.items() %}
+  {%- if source_address.interface == "GigabitEthernet0" and "LINUX_IOSD" in grains.version or "aubixrt01" in grains.hostname %}
+    {%- for h in hosts %}
+snmp-server host {{ h }} vrf Mgmt-intf version 2c {{ c }}
+    {%- endfor %}
+  {%- else %}
+    {%- for h in hosts %}
+snmp-server host {{ h }} version 2c {{ c }}
+    {%- endfor %}
+  {%- endif %}
+{%- endfor %}
+!
+!
+end
+
+{%- elif "nxos" in grains.os -%}
+
+no ip access-list SNMP_CLIENTS
+ip access-list SNMP_CLIENTS
+{%- for h in snmp.clients %}
+ permit ip {{ h }}/32 any
+{%- endfor %}
+!
+{%- set cmd = 'show run | i snmp-server' %}
+{%- set existing_config = salt.net.cli(cmd)['out'][cmd] %}
+{%- if existing_config != "" %}
+  {%- for l in existing_config.split('\n') %}
+no {{ l }}
+  {%- endfor %}
+{%- endif %}
+!
+snmp-server contact {{ snmp.contact }}
+snmp-server location {{ region }}-{{ dc }}
+!
+{%- for c, conf in snmp.community.items() %}
+snmp-server community {{ c }} {{ conf.mode }}
+snmp-server community {{ c }} use-acl SNMP_CLIENTS
+{%- endfor %}
+!
+{%- for c, hosts in trap.items() %}
+  {%- for h in hosts %}
+snmp-server host {{ h }} version 2c {{ c }}
+  {%- endfor %}
+{%- endfor %}
+!
+!
+end
+
+{%- elif grains.os == "junos" -%}
+
+replace: snmp {
+  location "{{ region }}-{{ dc }}";
+  contact "{{ snmp.contact }}";
+  client-list SNMP_CLIENTS {
+  {%- for h in snmp.clients %}
+    {{ h }}/32;
+  {%- endfor %}
+  }
+  {% if noction_snmp is defined and noction_snmp != None %}
+  client-list NOCTION {
+  {%- for h in noction_snmp.clients %}
+    {{ h }};
+  {%- endfor %}  
+  }
+  {% endif %}
+  {%- if 'routing_instance' in snmp %}
+  routing-instance-access {
+    access-list {
+      {{ snmp.routing_instance }};
+    }
+  }
+  {%- endif %}
+
+  {%- if "atlinet01" in grains.hostname or "atlinet02" in grains.hostname or "ifcinet01" in grains.hostname or "ifcinet02" in grains.hostname-%}
+
+  view {{ snmpv3.snmp.view }} {
+    {%- for o in snmpv3.snmp.oids %}
+      oid {{ o }} include;
+    {%- endfor %}  
+  }
+  v3 {
+    notify {{ snmpv3.notify.name }} {
+      tag {{ snmpv3.notify.tag }};
+      type trap;
+    }
+    snmp-community {{ snmpv3.snmpcomm.name }} {
+      community-name {{ snmpv3.snmpcomm.commname }};
+      security-name {{ snmpv3.snmpcomm.secname }};
+      tag {{ snmpv3.notify.tag }};
+    }
+    target-address {{ snmpv3.targetaddr.name }} {
+      address {{ snmpv3.targetaddr.addr }};
+      address-mask {{ snmpv3.targetaddr.netmask }};
+      port {{ snmpv3.targetaddr.port }};
+      tag-list {{ snmpv3.notify.tag }};
+      target-parameters {{ snmpv3.targetaddr.param }};
+    }
+    target-parameters {{ snmpv3.targetaddr.param }} {
+      parameters {
+        message-processing-model v1;
+        security-model v1;
+        security-level none;
+        security-name {{ snmpv3.snmpcomm.secname }};
+      }
+    }
+    usm {
+      local-engine user {{ snmpv3.usm.localengine.user }} {
+        authentication-sha authentication-password {{ snmpv3.usm.localengine.authpass }};
+        privacy-aes128 privacy-password {{ snmpv3.usm.localengine.privpass }};
+      }
+    }
+  }
+  {%- endif %}
+
+  {%- if "atlinet01" in grains.hostname or "atlinet02" in grains.hostname or "ifcinet01" in grains.hostname or "ifcinet02" in grains.hostname-%}
+
+  v3 {
+    vacm {
+      security-to-group {
+        security-model usm {
+          security-name {{ snmpv3.snmpcomm.secname }} {
+            group {{ snmpv3.vacm.group }};
+          }
+        }
+      }
+      access group {{ snmpv3.vacm.group }} {
+        default-context-prefix security-model usm security-level privacy {
+          read-view {{ snmpv3.snmp.view }};
+          notify-view {{ snmpv3.snmp.view }};
+        }
+      }
+    }
+  }
+  {%- endif %}
+
+  {%- for c, c_conf in snmp.community.items() %}
+  community {{ c }} {
+    {%- if c_conf.mode == 'rw' %}
+    authorization read-write;
+    {%- else %}
+    authorization read-only;
+    {%- endif %}
+    client-list-name SNMP_CLIENTS;      
+    {%- if pillar.roles is defined and 'fabric_ce' in pillar.roles %}
+    routing-instance VRF_ARKAD_INT {
+        client-list-name SNMP_CLIENTS;
+    }
+    {%- endif %}
+  }
+  {%- endfor %}
+  {% if noction_snmp is defined and noction_snmp != None %}
+  {%- for c, c_conf in noction_snmp.community.items() %}
+  community {{ c }} {
+    {%- if c_conf.mode == 'rw' %}
+    authorization read-write;
+    {%- else %}
+    authorization read-only;
+    {%- endif %}
+    client-list-name NOCTION;
+  }
+  {%- endfor %}
+  {% endif %}
+  {%- for c, hosts in trap.items() %}
+  trap-group {{ c }} {
+    categories {
+       chassis;
+       link;
+       routing;
+    }
+    targets {
+      {%- for h in hosts %}
+      {{ h }};
+      {%- endfor %}
+    }
+  }
+  {%- endfor %}
+  {%- if pillar.roles is defined and 'fabric_ce' in pillar.roles %}
+  routing-instance-access {
+    access-list {
+        VRF_ARKAD_INT;
+    }
+  }
+  {%- endif %}
+}
+
+{%- endif %}

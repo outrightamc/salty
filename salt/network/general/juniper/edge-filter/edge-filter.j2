@@ -1,0 +1,419 @@
+{% if grains.os == "junos" %}
+apply-groups CG_SLT_EDGE-FILTER;
+groups {
+    replace: CG_SLT_EDGE-FILTER {
+        policy-options {
+            {%- if martians is defined and not martians == None %}
+            prefix-list PFX_MARTIANS_V4 {
+              {%- for prefix in martians %}
+                {%- if '/' not in prefix %}
+                {{ prefix }}/32;
+                {%- else %}
+                {{ prefix }};
+                {%- endif %}
+              {%- endfor %}
+            }
+            {%- else %}
+            prefix-list PFX_MARTIANS_V4;
+            {%- endif %}            
+            {%- if blacklisted is defined and not blacklisted == None %}
+            prefix-list PFX_BLACKLIST_V4 {
+              {%- for prefix in blacklisted %}
+                {%- if '/' not in prefix %}
+                {{ prefix }}/32;
+                {%- else %}
+                {{ prefix }};
+                {%- endif %}
+              {%- endfor %}
+            }
+            {%- else %}
+            prefix-list PFX_BLACKLIST_V4;
+            {%- endif %}
+            {%- if snmpallow is defined and not snmpallow == None %}
+            prefix-list PFX_SNMP_ALLOW_V4 {
+              {%- for prefix in snmpallow %}
+                {%- if '/' not in prefix %}
+                {{ prefix }}/32;
+                {%- else %}
+                {{ prefix }};
+                {%- endif %}
+              {%- endfor %}
+            }
+            {%- else %}
+            prefix-list PFX_SNMP_ALLOW_V4;
+            {%- endif %}
+            {%- if umbrella_ips is defined and not umbrella_ips == None %}
+            prefix-list PFX_UMBREL_V4 {
+              {%- for prefix in umbrella_ips %}
+                {%- if '/' not in prefix %}
+                {{ prefix }}/32;
+                {%- else %}
+                {{ prefix }};
+                {%- endif %}
+              {%- endfor %}
+            }
+            {%- else %}
+            prefix-list PFX_UMBREL_V4;
+            {%- endif %}
+        }
+        firewall {
+            family inet {
+                filter PF_GLOBAL-EDGE_V4 {
+                    term BLACKLISTED {
+                        from {
+                            source-prefix-list {
+                                PFX_BLACKLIST_V4;
+                            }
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term ICMP_FIRST_FRAG {
+                        from {
+                            first-fragment;
+                            protocol icmp;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term ICMP_FRAGS {
+                        from {
+                            is-fragment;
+                            protocol icmp;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term ICMP {
+                        from {
+                            protocol icmp;
+                            icmp-type [ echo-reply echo-request time-exceeded unreachable ];
+                        }
+                        then accept;
+                    }
+                    term ICMP_DEFAULT {
+                        from {
+                            protocol icmp;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term UDP_FIRST_FRAG {
+                        from {
+                            first-fragment;
+                            protocol udp;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term UDP_FRAGS {
+                        from {
+                            is-fragment;
+                            protocol udp;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term TCP_EST {
+                        from {
+                            protocol tcp;
+                            tcp-established;
+                        }
+                        then accept;
+                    }
+                    term MARTIANS_V4 {
+                        from {
+                            source-prefix-list {
+                                PFX_MARTIANS_V4;
+                            }
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term TELNET {
+                        from {
+                            protocol tcp;
+                            destination-port 23;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term POP3 {
+                        from {
+                            protocol tcp;
+                            destination-port 110;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term RPC {
+                        from {
+                            destination-port 111;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term NTP_TCP {
+                        from {
+                            protocol tcp;
+                            destination-port 123;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term NTP_UDP {
+                        from {
+                            protocol udp;
+                            destination-port 123;
+                        }
+                        then accept;
+                    }
+                    term LOC_SRV {
+                        from {
+                            destination-port 135;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term NETBIOS_NS {
+                        from {
+                            destination-port 137;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term NETBIOS_DGM {
+                        from {
+                            destination-port 138;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term NETBIOS_SSN {
+                        from {
+                            destination-port 139;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term IMAP {
+                        from {
+                            protocol tcp;
+                            destination-port 143;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term SNMP_ALLOW {
+                        from {
+                            destination-port 161;
+                            source-prefix-list {
+                                PFX_SNMP_ALLOW_V4;
+                            }
+                        }
+                        then {
+                            accept;
+                        }
+                    }
+                    term SNMP {
+                        from {
+                            destination-port 161;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term SNMP_TRAP {
+                        from {
+                            destination-port 162;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term MS_DS {
+                        from {
+                            destination-port 445;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term MS_SQL {
+                        from {
+                            destination-port 1433;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term MS_RDP {
+                        from {
+                            protocol tcp;
+                            destination-port 3389;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term ESP {
+                        from {
+                            protocol esp;
+                        }
+                        then accept;
+                    }
+                    term ISAKMP {
+                        from {
+                            protocol udp;
+                            destination-port 500;
+                        }
+                        then accept;
+                    }
+                    term NAT-T {
+                        from {
+                            protocol udp;
+                            destination-port 4500;
+                        }
+                        then accept;
+                    }
+                    term SSH {
+                        from {
+                            protocol tcp;
+                            destination-port 22;
+                        }
+                        then accept;
+                    }
+                    term HTTP {
+                        from {
+                            protocol tcp;
+                            destination-port 80;
+                        }
+                        then accept;
+                    }
+                    term HTTPS {
+                        from {
+                            protocol tcp;
+                            destination-port 443;
+                        }
+                        then accept;
+                    }
+                    term SIP {
+                        from {
+                            destination-port 5060;
+                        }
+                        then accept;
+                    }
+                    term SIP_TLS {
+                        from {
+                            destination-port 5061;
+                        }
+                        then accept;
+                    }
+                    term HTTP_ALT {
+                        from {
+                            protocol tcp;
+                            destination-port 8080;
+                        }
+                        then accept;
+                    }
+                    term DNS_QUERY {
+                        from {
+                            protocol udp;
+                            destination-port 53;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term DNS_UMBREL_REPLY {
+                        from {
+                            source-prefix-list PFX_UMBREL_V4;
+                            protocol udp;
+                            source-port 53;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term DNS_REPLY {
+                        from {
+                            protocol udp;
+                            source-port 53;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term DNS_ZONE_XFER {
+                        from {
+                            protocol tcp;
+                            destination-port 53;
+                        }
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                    term BGP {
+                        from {
+                            source-prefix-list {
+                                BGP_NEIGHBORS_V4;
+                            }
+                            destination-prefix-list {
+                                LOCAL_IPV4;
+                            }
+                            protocol tcp;
+                            port bgp;
+                        }
+                        then accept;
+                    }
+                    term UDP {
+                        from {
+                            protocol udp;
+                            destination-port 1024-65535;
+                        }
+                        then accept;
+                    }
+                    term ACCEPT_ALL {
+                        then {
+                            syslog;
+                            accept;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+firewall {
+    family inet {
+        delete: filter PF_GLOBAL-EDGE_V4;
+    }
+}
+policy-options {
+    delete: prefix-list PFX_MARTIANS_V4;
+    delete: prefix-list PFX_BLACKLIST_V4;
+    delete: prefix-list PFX_SNMP_ALLOW_V4;
+}
+{% endif %}

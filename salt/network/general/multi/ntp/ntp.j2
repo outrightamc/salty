@@ -1,0 +1,22 @@
+{%- if grains.os == "ios" -%}
+ no ntp
+ {%- if source_address.interface == "GigabitEthernet0" and "LINUX_IOSD" in grains.version or "aubixrt01" in grains.hostname %}
+   {%- for s in ntp_servers %}
+ ntp server vrf Mgmt-intf {{ s }}
+   {%- endfor %}
+ {%- else %}
+   {%- for s in ntp_servers %}
+ ntp server {{ s }}
+   {%- endfor %}
+ {%- endif %}
+ ntp source {{ source_address.interface }}
+{%- elif grains.os == "junos" -%}
+ system {
+     replace: ntp {
+         {%- for s in ntp_servers %}
+         server {{ s }};
+         {%- endfor %}
+         source-address {{ source_address.ip }};
+     }
+ }
+{%- endif %}

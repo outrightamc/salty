@@ -1,0 +1,91 @@
+{%- if grains.os|lower == "ios" %}
+{%- for iname, iconf in instances.items() %}
+  {%- if iconf.state is defined and iconf.state == "absent" %}
+no ip vrf {{ iname|upper }}
+!
+  {%- else %}
+ip vrf {{ iname|upper }}
+ description "{{ iconf.description }}"
+ rd {{ iconf.vrf.route_distinguisher }}
+ route-target export {{ iconf.vrf.route_target }}
+ route-target import {{ iconf.vrf.route_target }}
+!
+  {%- endif %}
+ {%- if iconf.protocols is defined and iconf.protocols.static is defined %}
+  {%- for net, nconf in iconf.protocols.static.items() %}
+  {%- set netinfo = salt.ipaddr.ipnetwork(net) %}
+ip route vrf {{ iname|upper }} {{ netinfo.ip }} {{ netinfo.netmask }} {{ nconf.next_hop }} {{ nconf.get("metric", "") }}
+  {%- endfor %}
+!
+ {%- endif %}
+ {%- if iconf.protocols is defined and iconf.protocols.bgp is defined %}
+router bgp {{ routing_options.as_number|default(53550) }}
+ !
+ address-family ipv4 vrf {{ iname|upper }}
+   {%- for proto in iconf.protocols.bgp.get('redistribute', []) %}
+  redistribute {{ proto }}
+   {%- endfor %}
+   {%- for grpname, grpconf in iconf.protocols.bgp.group.items() %}
+  neighbor {{ grpname|upper }} peer-group
+    {%- if grpconf.remote_as is defined %}
+  neighbor {{ grpname|upper }} remote-as {{ grpconf.remote_as }}
+    {%- endif %}
+    {%- if grpconf.password is defined %}
+  neighbor {{ grpname|upper }} password 7 {{ salt.iosutil.to_type7(grpconf.password) }}
+    {%- endif %}
+    {%- if grpconf.bfd is defined %}
+  neighbor {{ grpname|upper }} fall-over bfd
+    {%- endif %}
+    {%- if grpconf.import is defined %}
+  neighbor {{ grpname|upper }} route-map {{ grpconf.import }} in
+    {%- endif %}
+    {%- if grpconf.export is defined %}
+  neighbor {{ grpname|upper }} route-map {{ grpconf.export }} out
+    {%- endif %}
+    {%- if grpconf.description is defined %}
+  neighbor {{ grpname|upper }} description {{ grpconf.description }}
+    {%- endif %}
+    {%- set timers = grpconf.get('timers', { 'hello': 3, 'hold': 10 }) %}
+  neighbor {{ grpname|upper }} timers {{ timers.hello }} {{ timers.hold }}
+    {%- for n in grpconf.neighbor %}
+  neighbor {{ n.address }} peer-group {{ grpname|upper }}
+    {%- endfor %}
+   {%- endfor %}
+ exit-address-family
+ !
+ {%- endif %}
+{%- endfor %}
+!
+!
+end
+{%- elif grains.os|lower == "junos" %}
+routing-instances {
+  {%- for iname, iconf in instances.items() %}
+    {{ iname|upper }} {
+        instance-type {{ iconf.instance_type }};
+        {%- for intf in iconf.interfaces %}
+        interface {{ intf }};
+        {%- endfor %}
+        {%- if iconf.instance_type == "vrf" %}
+        vrf-table-label;
+        route-distinguisher {{ iconf.vrf.route_distinguisher }};
+          {%- if iconf.vrf.route_target is defined %}
+        vrf-target target:{{ iconf.vrf.route_target }};
+          {%- endif %}
+          {%- if iconf.vrf.vrf_import is defined %}
+        vrf-import {{ iconf.vrf.vrf_import }};
+          {%- endif %}
+          {%- if iconf.vrf.vrf_export is defined %}
+        vrf-export {{ iconf.vrf.vrf_export }};
+          {%- endif %}
+        {%- endif %}
+        {%- with protocols = iconf.protocols %}
+            {%- macro render_proto() %}
+            {%- include "network/routing-instances/junos-protocols.j2" %}
+            {%- endmacro %}
+            {{ render_proto()|indent(8, True) }}
+        {%- endwith %}
+    }
+  {%- endfor %}
+}
+{%- endif %}

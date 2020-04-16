@@ -1,0 +1,46 @@
+{% if grains.os == "junos" %}
+system {
+    host-name {{ grains.id }}
+    replace: root-authentication {
+        encrypted-password "{{ local_users.root_password | trim }}";
+    }
+    replace: login {
+        message "{{ motd_banner | replace('\n', '\\n') | trim }}";
+        {%- for u in local_users.present %}
+        {%- if u.neteng_class is defined and u.neteng_class != false %}
+        user {{ u.username }} {
+            uid {{ u.uid }};
+            class {{ u.neteng_class }};
+            authentication {
+                encrypted-password "{{ u.password | trim }}";
+                {# {%- for key in u.authorized_keys %}
+                {%- if 'ecdsa' in key %}
+                ssh-ecdsa "{{ key }}";
+                {%- elif 'rsa' in key %}
+                ssh-rsa "{{ key }}";
+                {%- endif %}
+                {%- endfor %} don't push user public keys to network devices to enforce 2fa #}
+            }
+        }
+        {%- endif %}
+        {%- endfor %}
+        user go-svc-saltstack {
+            uid 2001;
+            class super-user;
+            authentication {
+                encrypted-password "{{ local_users.automation_password | trim }}";
+            }
+        }
+        user rancid {
+            uid 2002;
+            class backups;
+            authentication {
+                encrypted-password "{{ local_users.backup_password | trim }}";
+            }
+        }
+        class backups {
+            permissions [ view view-configuration ];
+        }
+    }
+}
+{% endif %}

@@ -1,0 +1,12 @@
+{#- max configuration on CompactFlash card in the directory /config -#}
+{#- max configuration in directory /var/db/config on the hard disk max-configuration-rollbacks {{ maxconfig.rollbacks }}; -#}
+{% if grains.os == "junos" and grains.model == "SRX1400" %}
+system {
+    max-configurations-on-flash {{ maxconfig.onflash }};
+}
+{% elif grains.os == "junos" and grains.model == "SRX550" %}
+system {
+    max-configurations-on-flash {{ maxconfig.onflash }};
+    max-configuration-rollbacks {{ maxconfig.rollbacks }};
+}
+{% endif %}

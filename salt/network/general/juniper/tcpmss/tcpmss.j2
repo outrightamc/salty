@@ -1,0 +1,11 @@
+{% if grains.os == "junos" %}
+ security {
+     flow {
+     replace: tcp-mss {
+            ipsec-vpn {
+                mss {{ tcpmss }};
+            }
+        }
+    }
+ }
+{% endif %}

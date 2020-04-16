@@ -1,0 +1,52 @@
+{%- if protocols|length > 0 %}
+protocols {
+    {%- if "bgp" in protocols %}
+    bgp {
+        {%- for grp, gconf in protocols.bgp.group.items() %}
+        replace: group {{ grp|upper }} {
+            {%- if gconf.description is defined %}
+            description {{ gconf.description }};
+            {%- endif %}
+
+            {%- set timers = gconf.get('timers', { 'hello': 3, 'hold': 12 }) %}
+            hold-time {{ timers.hold }};
+
+            {%- if gconf.import is defined %}
+            import {{ gconf.import }};
+            {%- endif %}
+
+            {%- if gconf.export is defined %}
+            export {{ gconf.export }};
+            {%- endif %}
+            
+            {%- if gconf.peer_as is defined %}
+            peer-as {{ gconf.peer_as }};
+            {%- endif %}
+
+            {%- if gconf.password is defined %}
+            authentication-key {{ gconf.password }};
+            {%- endif %}
+
+            {%- if gconf.family is defined and gconf.family.inet is defined %}
+            family inet {
+                {%- if gconf.family.inet.labeled_unicast is defined %}
+                labeled-unicast;    
+                {%- endif %}
+            }
+            {%- endif %}
+
+            {%- for n in gconf.neighbor %}
+                {%- if n|length > 1 %}
+            neighbor {{ n.address }} {
+                {# not implemented yet #}
+            }
+                {%- else %}
+            neighbor {{ n.address }};
+                {%- endif %}
+            {%- endfor %}
+        }
+        {%- endfor %}
+    }
+    {%- endif %}
+}
+{%- endif %}

@@ -1,0 +1,9 @@
+{%- if grains.os == "junos" %}
+protocols {
+    lldp {
+        port-id-subtype interface-name;
+        port-description-type interface-description;
+        interface all;
+    }
+}
+{%- endif %}

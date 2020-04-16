@@ -1,0 +1,12 @@
+{% if grains.os == "junos" %}
+replace: routing-options {
+    static {
+        route 0.0.0.0/0 next-hop {{ routing_options.mgmt_nexthop }};
+    }
+    router-id {{ routing_options.router_id }};
+    autonomous-system {{ routing_options.autonomous_system }} asdot-notation;
+    forwarding-table {
+        export PS_ECMP; 
+    }
+}
+{% endif %}

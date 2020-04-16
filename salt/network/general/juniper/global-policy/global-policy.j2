@@ -1,0 +1,31 @@
+{% if grains.os == "junos" %}
+security {
+    policies {
+        replace: global {
+            policy GP_ICMP_ALL {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application junos-icmp-all;
+                }
+                then {
+                    permit;
+                }
+            }
+            policy GP_DEFAULT {
+                match {
+                    source-address any;
+                    destination-address any;
+                    application any;
+                }
+                then {
+                    deny;
+                    log {
+                        session-init;
+                    }
+                }
+            }
+        }
+    }
+}
+{% endif %}

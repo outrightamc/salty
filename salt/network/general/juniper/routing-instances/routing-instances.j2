@@ -1,0 +1,90 @@
+{% if grains.os == "junos" %}
+routing-instances {
+    {% for VRF in routing_instances %}
+    replace: {{ VRF.name }} {
+        description "{{ VRF.descr }}";
+        instance-type vrf;
+        {% for itf in VRF.interfaces %}
+        interface {{ itf }};
+        {% endfor %}
+        route-distinguisher {{ routing_options.router_id }}:{{ VRF.rd_bl }};
+        {% if VRF.vrf_target is defined %}
+        vrf-target {{ VRF.vrf_target}};
+        {% endif %}
+        {% if VRF.vrf_import is defined %}
+        vrf-import {{ VRF.vrf_import}};
+        {% endif %}
+        {% if VRF.vrf_export is defined %}
+        vrf-export {{ VRF.vrf_export}};
+        {% endif %}
+        vrf-table-label;
+        routing-options {
+            static {
+              {%- for rt in VRF.route %}
+                route {{ rt.prefix }} {
+                {% for opt in rt.options %}
+                {{ opt }};
+                {% endfor %}
+                }
+              {%- endfor %}
+            }
+        }
+        protocols {
+            bgp {
+                {% for group in VRF.groups %}
+                {% if group.state is defined and group.state == 'inactive' %}
+                inactive: group {{ group.name }} {
+                {% else %}
+                group {{ group.name }} {
+                {% endif %}
+                    type external;
+                    {% if group.multihop is defined %}
+                    multihop {
+                        ttl {{ group.multihop }};
+                    }
+                    {% endif %}
+                    {% if group.peer_as is defined %}
+                    peer-as {{ group.peer_as }};
+                    {% endif %}
+                    {% if group.local_address is defined %}
+                    local-address {{ group.local_address }};
+                    {% endif %}
+                    {% if group.multipath is defined %}
+                    multipath multiple-as;
+                    {% endif %}
+                    log-updown;
+                    family inet {
+                        unicast;
+                    }
+                    {% if group.export is defined %}
+                    export {{ group.export }};
+                    {% endif %}
+                    {% if group.import is defined %}
+                    import {{ group.import }};
+                    {% endif %}
+                    {% if group.name == 'INET_V4' %}
+                    {% for mx5 in inet_routers %}
+                    neighbor {{ mx5.ip }} {
+                        description {{ mx5.descr }};
+                    }
+                    {% endfor %}
+                    {% else %}
+                    {% for peer in group.neighbors %}
+                    neighbor {{ peer.ip }} {
+                        description {{ peer.descr }};
+                        {%- if peer.asdot is defined %}
+                        peer-as {{ fabric_asn }}.{{ peer.asdot }};
+                        {%- else  %}
+                        peer-as {{ fabric_asn }}.{{ group.asdot }};
+                        {%- endif %}
+                    }
+                    {% endfor %}
+                    {% endif %}
+                }
+                {% endfor %}
+            }
+        }
+    }
+    {% endfor %}
+}
+{% endif %}

@@ -1,0 +1,173 @@
+replace: policy-options {
+    prefix-list PFX_ARKAD_RIPE1_V4 {
+        185.37.220.0/22;
+    }
+    prefix-list PFX_ARKAD_RIPE2_V4 {
+        77.111.208.0/22;
+    }   
+    policy-statement PS_EXP_BORDER_V4 {
+        term ARKAD_PI {
+            from {
+                community COMM_VRF_ARKAD_EXT;
+                prefix-list-filter PFX_ARKAD_RIPE1_V4 orlonger;
+            }
+            then accept;
+        }
+        term ARKAD_FILTER_TRANSIT {
+            from community COMM_VRF_ARKAD_EXT;
+            then reject;
+        }
+        term PERMIT_ALL {
+            then accept;
+        }
+    }
+    policy-statement PS_EXP_CE_V4 {
+        term GEN_DEFAULT {
+            from {
+                route-filter 0.0.0.0/0 exact;
+            }
+            then accept;
+        }
+        term NEXT_HOP_SELF {
+            then {
+                next-hop self;
+            }
+        }
+    }
+    policy-statement PS_ECMP {
+        then {
+            load-balance per-packet;
+        }
+    }
+    policy-statement PS_IMP_INET_V4 {
+        term IMPORT_ALL {
+            then accept;
+        }
+    }
+    policy-statement PS_EXP_INET_V4 {
+        term LOOPBACK {
+            from {
+                route-filter {{ policy_options.loopback_inet }} exact;
+            }
+            then reject;
+        }
+        term ARKAD_PI {
+            from {
+                prefix-list-filter PFX_ARKAD_RIPE1_V4 orlonger;
+                prefix-list-filter PFX_ARKAD_RIPE2_V4 orlonger;
+            }
+            then accept;
+        }
+        term REJECT_ALL {
+            then reject;
+        }
+    }
+    policy-statement PS_EXP_IXRT_V4 {
+        term LOOPBACK_ONLY {
+            from {
+                community COMM_VRF_ARKAD_EXT;
+                route-filter {{ policy_options.loopback_inet }} exact;
+            }
+            then accept;
+        }
+        term ARKAD_FILTER_ALL {
+            from community COMM_VRF_ARKAD_EXT;
+            then reject;
+        }
+        term PERMIT_ALL {
+            then accept;
+        }
+    }
+    policy-statement PS_EXP_LEAF_V4 {
+        term GEN_DEFAULT {
+            from {
+                route-filter 0.0.0.0/0 exact;
+            }
+            then accept;
+        }
+    }
+    policy-statement PS_SET_LP {
+        /* RFC8326 - Graceful BGP Session Shutdown */
+        term GRACEFUL_SHUTDOWN {
+            from community COMM_LP0;
+            then {
+                local-preference 0;
+                next policy;
+            }
+        }
+        term LP80 {
+            from community COMM_LP80;
+            then {
+                local-preference 80;
+                next policy;
+            }
+        }
+        term LP120 {
+            from community COMM_LP120;
+            then {
+                local-preference 120;
+                next policy;
+            }
+        }
+    }
+    policy-statement PS_EXP_SPINE_V4 {
+        term GEN_DEFAULT {
+            from {
+                route-filter 0.0.0.0/0 exact;
+            }
+            then accept;
+        }
+    }
+    policy-statement PS_EXP_VRF-ARKAD-INT {
+        term FABRIC_BGP {
+            from {
+                protocol bgp;
+                {% for p in policy_options.local_prefixes %}
+                route-filter {{ p.prefix }} {{ p.match_type }};
+                {% endfor %}
+            }
+            then {
+                community add COMM_VRF_ARKAD_INT;
+                accept;
+            }
+        }
+        term REJECT_ALL {
+            then reject;
+        }
+    }
+    policy-statement PS_IMP_VRF-ARKAD-INT {
+        term IMPORT {
+            from community COMM_VRF_ARKAD_INT;
+            then {
+                community add COMM_BBONE_PFXS;
+                accept;
+            }
+        }
+        term IMP_LEGACY {
+            from community [ COMM_VRF_ARKAD_INT_LEGACY_1 COMM_VRF_ARKAD_INT_LEGACY_2 COMM_VRF_ARKAD_INT_LEGACY_3 COMM_VRF_ARKAD_INT_LEGACY_4 COMM_VRF_ARKAD_INT_LEGACY_5 COMM_VRF_ARKAD_INT_LEGACY_6 COMM_VRF_ARKAD_INT_LEGACY_7 COMM_VRF_ARKAD_INT_LEGACY_8 COMM_VRF_ARKAD_INT_LEGACY_9 ];
+            then {
+                community add COMM_BBONE_PFXS;
+                accept;
+            }
+        }
+        term REJECT_ALL {
+            then reject;
+        }
+    }
+    community COMM_BBONE_PFXS members 64100:100;
+    community COMM_LP0 members 65535:0;
+    community COMM_LP120 members 53550:120;
+    community COMM_LP80 members 53550:80;
+    community COMM_VRF_ARKAD_EXT members target:53550:2;
+    community COMM_VRF_ARKAD_INT members target:53550:1;
+    community COMM_VRF_ARKAD_INT_LEGACY_1 members target:53550:336666;
+    community COMM_VRF_ARKAD_INT_LEGACY_2 members target:53550:337777;
+    community COMM_VRF_ARKAD_INT_LEGACY_3 members target:53550:446666;
+    community COMM_VRF_ARKAD_INT_LEGACY_4 members target:53550:447777;
+    community COMM_VRF_ARKAD_INT_LEGACY_5 members target:53550:496666;
+    community COMM_VRF_ARKAD_INT_LEGACY_6 members target:53550:656666;
+    community COMM_VRF_ARKAD_INT_LEGACY_7 members target:53550:657777;
+    community COMM_VRF_ARKAD_INT_LEGACY_8 members target:53550:856666;
+    community COMM_VRF_ARKAD_INT_LEGACY_9 members target:53550:857777;
+    community COMM_VRF_ARKAD_INT_LEGACY_IMPORTS members "target:53550:((336666)|(337777)|(446666)|(447777)|(496666)|(656666)|(657777)|(856666)|(857777))";
+}

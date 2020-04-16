@@ -1,0 +1,12 @@
+{%- if grains.os == "ios" %}
+banner login {{ motd_banner }}
+{%- elif "nxos" in grains.os %}
+banner motd #{{ motd_banner }}#
+{%- elif grains.os == "junos" %}
+system {
+    login {
+        replace: message "{{ motd_banner | replace('\n', '\\n') | trim }}";
+    }
+}
+{%- endif %}
+

@@ -1,0 +1,89 @@
+{%- if grains.os|lower == "ios" %}
+{%- for pl, plconf in prefix_list.items() %}
+ {%- if plconf.state == "absent" %}
+no ip prefix-list {{ pl }}
+ {%- elif plconf.state == "present" %}
+  {%- for p in plconf.term %}
+ip prefix-list {{ pl }} seq {{ loop.index*10 }} permit {{ p }}
+  {%- endfor %}
+ {%- endif %}
+!
+{%- endfor %}
+!
+{%- for ps, psconf in policy_statement.items()  %}
+ {%- if psconf.state == "absent" %}
+no route-map {{ ps }}
+ {%- elif psconf.state == "present" %}
+ {%- for t in psconf.term %}
+route-map {{ ps }} permit {{ t.name }}
+  {%- for m in t.match %}
+   {%- if m.type == "prefix-list" %}
+ match ip address prefix-list {{ m.value }}
+   {%- endif %}
+  {%- endfor %}
+  {%- for a in t.action %}
+   {%- if a.type == "local-preference" %}
+ set local-preference {{ a.value }}
+   {%- elif a.type == "as-path-prepend" %}
+ set as-path prepend {{ a.value }}
+   {%- endif %}
+  {%- endfor %}
+ {%- endfor %}
+ {%- endif %}
+!
+{%- endfor %}
+!
+end
+{%- elif grains.os|lower == "junos" %}
+replace: policy-options {
+    {%- for p, pc in policy_statement.items() %}
+    policy-statement {{ p|upper }} {
+        {%- for t in pc.term %}
+        term {{ t.name }} {
+            from {
+            {%- for m in t.match %}
+              {%- if m.value is not defined %}
+              {{ m.type }};
+              {%- else %}
+              {{ m.type }} {{ m.value }};
+              {%- endif %}
+            {%- endfor %}
+            }
+            then {
+            {%- for m in t.action %}
+              {%- if m.value is not defined %}
+              {{ m.type }};
+              {%- else %}
+              {{ m.type }} {{ m.value }};
+              {%- endif %}
+            {%- endfor %}
+            {%- if t.action|length == 0 %}
+                accept;
+            {%- endif %}
+            }
+        }
+        {%- endfor %}
+    }
+    {%- endfor %}
+    {%- for p, pc in prefix_list.items() %}
+    prefix-list {{ p|upper }} {
+        {%- for t in pc.term %}
+        {{ t }};
+        {%- endfor %}
+    }
+    {%- endfor %}
+    {%- for c, cc in community.items() %}
+    community {{ c|upper }} members [ {{ cc.members|join(" ") }} ];
+    {%- endfor %}
+    {%- for a, regex in as_path.items() %}
+    as-path {{ a|upper }} "{{ regex }}";
+    {%- endfor %}
+    {%- for agrp, ac in as_path_group.items() %}
+    as-path-group {{ agrp|upper }} {
+        {%- for a, regex in ac.items() %}
+        as-path {{ a|upper }} "{{ regex }}";
+        {%- endfor %}
+    }
+    {%- endfor %}
+}
+{%- endif %}

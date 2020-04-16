@@ -1,0 +1,13 @@
+chassis {
+    cluster {
+        {%- for grp, ints in interface_monitor.items() %}
+        redundancy-group {{ grp }} {
+            replace: interface-monitor {
+                {%- for i in ints %}
+                {{ i }} weight 255;
+                {%- endfor %}
+            }
+        }
+        {%- endfor %}
+    }
+}

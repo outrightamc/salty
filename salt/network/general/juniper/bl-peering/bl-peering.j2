@@ -1,0 +1,19 @@
+protocols {
+    bgp {
+        replace: group BORDER {
+            type external;
+            peer-as 53550;
+            multihop {
+                ttl 16;
+            }
+            import IM_IBGP_V4;
+            export EX_IBGP_V4;
+            local-address {{ loopback_ip }};
+            {%- for h, addr in bl_loops.items() %}
+            neighbor {{ addr }} {
+                description {{ h }};
+            }
+            {%- endfor %}
+        }
+    }
+}

@@ -1,0 +1,53 @@
+{%- if "pyrinet01" in grains.hostname or "atlinet01" in grains.hostname or "atlinet02" in grains.hostname or "pa2inet01" in grains.hostname-%}
+replace: snmp {
+  view {{ snmpv3.snmp.view }} oid .1 include;
+  v3 {
+    notify {{ snmpv3.notify.name }} {
+      tag {{ snmpv3.notify.tag }};
+      type trap;
+    }
+    notify-filter {{ snmpv3.notificafil.name }} oid .1 include;
+    snmp-community {{ snmpv3.snmpcomm.name }} {
+      community-name {{ snmpv3.snmpcomm.commname }};
+      security-name {{ snmpv3.snmpcomm.secname }};
+      tag {{ snmpv3.notify.tag }};
+    }
+    target-address {{ snmpv3.targetaddr.name }} {
+      address {{ snmpv3.targetaddr.addr }};
+      address-mask {{ snmpv3.targetaddr.netmask }};
+      port {{ snmpv3.targetaddr.port }};
+      tag-list {{ snmpv3.notify.tag }};
+      target-parameters {{ snmpv3.targetaddr.param }};
+    }
+    target-parameters {{ snmpv3.targetaddr.param }} {
+      notify-filter {{ snmpv3.notificafil.name }};
+      parameters {
+        message-processing-model v1;
+        security-model v1;
+        security-level none;
+        security-name {{ snmpv3.snmpcomm.secname }};
+      }
+    }
+    usm {
+      local-engine user {{ snmpv3.usm.localengine.user }} {
+        authentication-sha authentication-password {{ snmpv3.usm.localengine.authpass }};
+        privacy-aes128 privacy-password {{ snmpv3.usm.localengine.privpass }};
+      }
+    }
+    vacm {
+      access group {{ snmpv3.vacm.group }} default-context-prefix security-model usm security-level privacy read-view {{ snmpv3.snmp.view }};
+      access group {{ snmpv3.vacm.group }} default-context-prefix security-model usm security-level privacy notify-view {{ snmpv3.snmp.view }};
+    }
+  }
+}
+{%- elif "pyrinet01" in grains.hostname or "atlinet01" in grains.hostname or "atlinet02" in grains.hostname or "pa2inet01" in grains.hostname-%}
+replace: snmp v3 vacm {
+  security-to-group {
+    security-model usm {
+      security-name {{ snmpv3.snmpcomm.secname }} {
+        group {{ snmpv3.vacm.group }};
+      }
+    }
+  }
+}
+{% endif %}

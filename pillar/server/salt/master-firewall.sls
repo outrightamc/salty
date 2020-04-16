@@ -1,0 +1,4 @@
+firewall:
+  services:
+    - ssh
+    - snmp

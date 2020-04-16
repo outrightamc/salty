@@ -1,0 +1,66 @@
+protocols {
+    replace: mpls {
+        ipv6-tunneling;
+        {%- for i in core.interfaces %}
+        interface {{ i }};
+        {%- endfor %}
+    }
+    bgp {
+        replace: group FABRIC {
+            type external;
+            export EX_EBGP_FABRIC;
+            multipath multiple-as;
+            {%- for i in fabric.spine_peers %}
+            neighbor {{ i }} {
+                peer-as {{ fabric.spine_asn }};
+            }
+            {%- endfor %}
+        }
+        replace: group IBGP_VPNV4 {
+            type internal;
+            local-address {{ loopback }};
+            family inet-vpn {
+                unicast;
+            }
+            family l2vpn {
+                signaling;
+            }
+            {%- for i in core.loopbacks %}
+              {%- if i != loopback %}
+            neighbor {{ i }};
+              {%- endif %}
+            {%- endfor %}
+        }
+    }
+    replace: ospf {
+        spf-options {
+            delay 100;
+            holddown 5000;
+            rapid-runs 3;
+        }
+        area 0.0.0.0 {
+            interface lo0.0 {
+                passive;
+            }
+            {%- for i in core.interfaces %}
+            interface {{ i }} {
+                interface-type p2p;
+                hello-interval 1;
+                dead-interval 3;
+                authentication {
+                    md5 1 key "{{ core.ospf_secret }}";
+                }
+            }
+            {%- endfor %}
+        }
+    }
+    replace: ldp {
+        track-igp-metric;
+        {%- for i in core.interfaces %}
+        interface {{ i }};
+        {%- endfor %}
+        session-group 172.16.0.0/24 {
+            authentication-key "{{ core.ldp_secret }}";
+        }
+    }
+}

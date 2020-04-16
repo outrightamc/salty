@@ -1,0 +1,64 @@
+interfaces {
+    lo0 {
+        unit 0 {
+            family inet;
+        }
+    }
+}
+apply-groups CG_SLT_OAM-CP-FILTER;
+groups {
+    CG_SLT_OAM-CP-FILTER {
+        interfaces {
+            lo0 {
+                unit <*> {
+                    family inet {
+                        filter {
+                            input MGMT_RESTRICT_V4;
+                        }
+                    }
+                }
+            }
+        }
+        firewall {
+            family inet {
+                filter MGMT_RESTRICT_V4 {
+                    term ACCEPT_SSH_V4 {
+                        from {
+                            source-prefix-list {
+                                MGMT_NETS_V4;
+                            }
+                            protocol tcp;
+                            destination-port ssh;
+                        }
+                        then {
+                            count ACCEPT_SSH_V4;
+                            accept;
+                        }
+                    }
+                    term DISCARD_SSH_V4 {
+                        from {
+                            protocol tcp;
+                            destination-port ssh;
+                        }
+                        then {
+                            count DISCARD_SSH_V4;
+                            discard;
+                        }
+                    }
+                    term ACCEPT_ALL_V4 {
+                        then {
+                            accept;
+                        }
+                    }
+                }
+            }
+        }
+        policy-options {
+            prefix-list MGMT_NETS_V4 {
+             {%- for pfx in mgmt_nets %}
+                {{ pfx }};
+             {%- endfor %}
+            }
+        }
+    }
+}

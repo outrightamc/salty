@@ -1,0 +1,13 @@
+---
+netscreens:
+  - aimfw01-1
+  - aubfw01
+  - aubfw02
+  - bdgfw01-1
+  - chtfw01-1
+  - ld4fw01-1
+  - mtpfw01-1
+  - nedfw01-1
+  - pa2fw01
+  - stdfw01-1
+  - taufw01-1

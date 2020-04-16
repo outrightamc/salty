@@ -1,0 +1,15 @@
+{%- if grains.os == "ios" %}
+ {%- if "WS-C6504" in grains.model %}
+mac-address-table aging-time {{ aging }}
+ {%- else %}
+mac address-table aging-time {{ aging }} 
+ {%- endif %}
+!
+!
+end
+
+{%- elif "nxos" in grains.os %}
+!
+mac address-table aging-time {{ aging }}
+
+{%- endif %}

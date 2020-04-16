@@ -1,0 +1,93 @@
+{%- if grains.os == "ios" -%}
+  {%- set iosxe = false %}
+  {%- if "LINUX_IOSD" in grains.version %}
+    {%- set iosxe = true %}
+  {%- endif %}
+
+  {%- set configured_servers = salt.iosutil.get_syslog_servers() %}
+  {%- set diff = salt.iosutil.list_diff(configured_servers, syslog_servers) %}
+
+  {%- if iosxe %}
+   {%- for l in diff.remove %}
+no logging host {{ l }}
+   {%- endfor %}
+   {%- for l in diff.add %}
+logging host {{ l }}
+   {%- endfor %}
+  {%- else %}
+   {%- for l in diff.remove %}
+no logging {{ l }}
+   {%- endfor %}
+   {%- for l in diff.add %}
+logging {{ l }}
+   {%- endfor %}
+  {%- endif %}
+logging trap {{ severity }}
+!
+logging buffered {{ buffer }}
+logging monitor
+logging console
+logging origin-id hostname
+logging source-interface {{ source_address.interface }}
+!
+!
+end
+
+{%- elif "nxos" in grains.os -%}
+!
+  {# collect logging facility and existing configuration #}
+  {%- set cmd = 'show run | i ^logging.server.[0-9]' %}
+  {%- set existing_config = salt.net.cli(cmd)['out'][cmd] %}
+  {# delete non standard syslog server #}
+  {%- for l in existing_config.split('\n') %}
+  {%- if l != '' %}
+no {{ l }}
+  {%- endif %}
+  {%- endfor %}
+  {% set splitparam = severity_level~' use-vrf management facility '~facility~'\n' %}
+  {%- for l in existing_config.split(splitparam) %}
+  {%- if l != '' %}
+no {{ l }}
+  {%- endif %}
+  {%- endfor %}  
+  {# add standard syslog server #}
+  {%- for s in syslog_servers %}
+logging server {{ s }} {{ severity_level }} facility {{ facility }} use-vrf management 
+  {%- endfor %}
+logging event link-status default
+logging monitor 2
+logging console 2
+logging level {{ facility }} {{ severity_level }}
+
+{%- elif grains.os == "junos" -%}
+protocols {
+   bgp {
+     log-updown;
+   }
+}
+system {
+replace: syslog {
+        archive size 100k files 8;
+  {%- for s in syslog_servers %}
+        host {{ s }}  {
+            any {{ junos_severity }};
+            port 514;
+            source-address {{ source_address.ip }};
+        }
+  {%- endfor %}
+        user * {
+            any emergency;
+        }
+        file messages {
+            any notice;
+            authorization info;
+        }
+        file traffic-log {
+            user any;
+        }
+        file interactive-commands {
+            interactive-commands any;
+        }
+    }
+}
+{%- endif -%}

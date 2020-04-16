@@ -1,0 +1,429 @@
+
+apply-groups CG_SLT_OAM-CP-FILTER;
+groups {
+    CG_SLT_OAM-CP-FILTER {
+        interfaces {
+            lo0 {
+                unit <*> {
+                    family inet {
+                        filter {
+                            input-list [ CP_NET_PROTO_V4 CP_MGMT_V4 CP_DISCARD_ALL_V4 ];
+                        }
+                    }
+                }
+            }
+        }
+        firewall {
+            family inet {
+                filter CP_NET_PROTO_V4 {
+                    term OSPF_V4 {
+                        filter CP_OSPF_V4;
+                    }
+                    term BGP_V4 {
+                        filter CP_BGP_V4;
+                    }
+                    term IPSEC-VPN_V4 {
+                        filter CP_IPSEC-VPN_V4;
+                    }
+                    term TRACERT_V4 {
+                        filter CP_TRACERT_V4;
+                    }
+                    term NTP_V4 {
+                        filter CP_NTP_V4;
+                    }
+                    term ICMP_V4 {
+                        filter CP_ICMP_V4;
+                    }
+                }
+                filter CP_OSPF_V4 {
+                    term OSPF_MCAST {
+                        from {
+                            destination-prefix-list {
+                                PFX_OSPF-MCAST_V4;
+                            }
+                            protocol ospf;
+                        }
+                        then {
+                            count ACCEPT_OSPF_V4;
+                            accept;
+                        }
+                    }
+                    term OSPF_UCAST {
+                        from {
+                            destination-prefix-list {
+                                LOCAL_IPV4;
+                            }
+                            protocol ospf;
+                        }
+                        then {
+                            count ACCEPT_OSPF_V4;
+                            accept;
+                        }
+                    }
+                }
+                filter CP_BGP_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                BGP_PEERS_V4;
+                                BGP_VRF_PEERS_V4;
+                            }
+                            destination-prefix-list {
+                                LOCAL_IPV4;
+                            }
+                            protocol tcp;
+                            port bgp;
+                        }
+                        then accept;
+                    }
+                    term DISCARD {
+                        from {
+                            protocol tcp;
+                            port bgp;
+                        }
+                        then {
+                            count DISCARD_BGP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_IPSEC-VPN_V4 {
+                    term IKE {
+                        from {
+                            source-prefix-list {
+                                PFX_IPSEC-VPN_PEER_V4;
+                            }
+                            protocol udp;
+                            port 500;
+                        }
+                        then {
+                            count ACCEPT_IKE_V4;
+                            accept;
+                        }
+                    }
+                    term ESP {
+                        from {
+                            source-prefix-list {
+                                PFX_IPSEC-VPN_PEER_V4;
+                            }
+                            protocol esp;
+                        }
+                        then {
+                            count ACCEPT_ESP_V4;
+                            accept;
+                        }
+                    }
+                }
+                filter CP_TRACERT_V4 {
+                    term ACCEPT_UDP {
+                        from {
+                            destination-prefix-list {
+                                LOCAL_IPV4;
+                            }
+                            protocol udp;
+                            destination-port 33435-33450;
+                        }
+                        then accept;
+                    }
+                    term ACCEPT_ICMP {
+                        from {
+                            destination-prefix-list {
+                                LOCAL_IPV4;
+                            }
+                            protocol icmp;
+                            icmp-type [ echo-request timestamp time-exceeded ];
+                        }
+                        then accept;
+                    }
+                }
+                filter CP_NTP_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                NTP_SERVERS_V4;
+                                LOCAL_IPV4;
+                            }
+                            protocol udp;
+                            port ntp;
+                        }
+                        then accept;
+                    }
+                    term DISCARD {
+                        from {
+                            protocol udp;
+                            port ntp;
+                        }
+                        then {
+                            count DISCARD_NTP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_ICMP_V4 {
+                    term NO_ICMP_FRAGMENTS_V4 {
+                        from {
+                            is-fragment;
+                            protocol icmp;
+                        }
+                        then {
+                            discard;
+                        }
+                    }
+                    term ACCEPT {
+                        from {
+                            protocol icmp;
+                        }
+                        then accept;
+                    }
+                }
+                filter CP_MGMT_V4 {
+                    term SSH_V4 {
+                        filter CP_SSH_V4;
+                    }
+                    term NETCONF_V4 {
+                        filter CP_NETCONF_V4;
+                    }
+                    term SNMP_V4 {
+                        filter CP_SNMP_V4;
+                    }
+                    term RADIUS_V4 {
+                        filter CP_RADIUS_V4;
+                    }
+                }
+                filter CP_SSH_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                MGMT_NETS_V4;
+                            }
+                            protocol tcp;
+                            destination-port ssh;
+                        }
+                        then accept;
+                    }
+                    term DISCARD {
+                        from {
+                            protocol tcp;
+                            destination-port ssh;
+                        }
+                        then {
+                            count DISCARD_SSH_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_NETCONF_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                NETCONF_SERVERS_V4;
+                            }
+                            protocol tcp;
+                            destination-port 830;
+                        }
+                        then accept;
+                    }
+                    term DISCARD {
+                        from {
+                            protocol tcp;
+                            destination-port 830;
+                        }
+                        then {
+                            count DISCARD_NETCONF_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_SNMP_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                SNMP_CLIENT_LISTS_V4;
+                            }
+                            protocol udp;
+                            destination-port snmp;
+                        }
+                        then accept;
+                    }
+                    term DISCARD {
+                        from {
+                            protocol udp;
+                            destination-port snmp;
+                        }
+                        then {
+                            count DISCARD_SNMP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_RADIUS_V4 {
+                    term ACCEPT {
+                        from {
+                            source-prefix-list {
+                                PFX_RADIUS-SERVERS_V4;
+                            }
+                            protocol udp;
+                            source-port [ radius radacct ];
+                        }
+                        then {
+                            log;
+                            accept;
+                        }
+                    }
+                    term DISCARD {
+                        from {
+                            protocol udp;
+                            source-port [ radius radacct ];
+                        }
+                        then {
+                            count DISCARD_RADIUS_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+                filter CP_DISCARD_ALL_V4 {
+                    term DISCARD_IP_OPTIONS_V4 {
+                        from {
+                            ip-options any;
+                        }
+                        then {
+                            count DISCARD_IP_OPTIONS_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                    term DISCARD_TCP_V4 {
+                        from {
+                            protocol tcp;
+                        }
+                        then {
+                            count DISCARD_TCP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                    term DISCARD_UDP_V4 {
+                        from {
+                            protocol udp;
+                        }
+                        then {
+                            count DISCARD_UDP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                    term DISCARD_ICMP_V4 {
+                        from {
+                            protocol icmp;
+                        }
+                        then {
+                            count DISCARD_ICMP_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                    term DISCARD_UNKNOWN_V4 {
+                        then {
+                            count DISCARD_UNKNOWN_V4;
+                            log;
+                            discard;
+                        }
+                    }
+                }
+            }
+        }
+        policy-options {
+            prefix-list PFX_RADIUS-SERVERS_V4 {
+                apply-path "system radius-server <*.*.*.*>"
+            }
+            prefix-list PFX_IPSEC-VPN_PEER_V4 {
+                apply-path "security ike gateway <*> address <*.*.*.*>"
+            }
+            prefix-list BGP_PEERS_V4 {
+                apply-path "protocols bgp group <*> neighbor <*.*.*.*>"
+            }
+            prefix-list BGP_VRF_PEERS_V4 {
+                apply-path "routing-instances <*> protocols bgp group <*> neighbor <*.*.*.*>"
+            }
+            prefix-list BGP_NEIGHBORS_V4 {
+                apply-path "protocols bgp group <*> neighbor <*.*.*.*>";
+            }
+            prefix-list BGP_NEIGHBORS_VRF_V4 {
+                apply-path "routing-instances <*> protocols bgp group <*> neighbor <*.*.*.*>";
+            }
+            prefix-list LOCAL_IPV4 {
+                apply-path "interfaces <*> unit <*> family inet address <*.*.*.*>";
+            }
+            prefix-list MCAST_ALL_ROUTERS_V4 {
+                224.0.0.2/32;
+            }
+            prefix-list LOCAL_FXP0_V4 {
+                apply-path "interfaces fxp0 unit <*> family inet address <*.*.*.*>";
+            }
+            prefix-list LOOPBACKS_V4 {
+                apply-path "interfaces lo0 unit 0 family inet address <*.*.*.*>";
+            }
+            prefix-list VRRP_V4 {
+                224.0.0.18/32;
+            }
+            prefix-list DNS_SERVERS_V4 {
+                apply-path "system name-server <*.*.*.*>";
+            }
+            prefix-list NTP_SERVERS_V4 {
+                apply-path "system ntp server <*.*.*.*>";
+            }
+            prefix-list SNMP_CLIENT_LISTS_V4 {
+                apply-path "snmp client-list <*> <*.*.*.*>";
+            }
+            prefix-list SNMP_TRAP_GROUP_V4 {
+                apply-path "snmp trap-group <*> targets <*.*.*.*>";
+            }
+            prefix-list RADIUS_SERVERS_V4 {
+                apply-path "system radius-server <*.*.*.*>";
+            }
+            prefix-list MGMT_NETS_V4 {
+            {%- for pfx in mgmt_nets %}
+                {{ pfx }};
+            {%- endfor %}
+            }
+            prefix-list PFX_OSPF-MCAST_V4 224.0.0.5/32;
+            prefix-list PFX_OSPF-MCAST_V4 224.0.0.6/32;
+        }
+    }
+}
+
+{# Remove existing if present #}
+firewall {
+    family inet {
+        delete: filter CP_NET_PROTO_V4;
+        delete: filter CP_OSPF_V4;
+        delete: filter CP_BGP_V4;
+        delete: filter CP_IPSEC-VPN_V4;
+        delete: filter CP_TRACERT_V4;
+        delete: filter CP_NTP_V4;
+        delete: filter CP_ICMP_V4;
+        delete: filter CP_MGMT_V4;
+        delete: filter CP_SSH_V4;
+        delete: filter CP_NETCONF_V4;
+        delete: filter CP_SNMP_V4;
+        delete: filter CP_RADIUS_V4;
+        delete: filter CP_DISCARD_ALL_V4;
+    }
+}
+policy-options {
+    delete: prefix-list BGP_NEIGHBORS_V4;
+    delete: prefix-list BGP_NEIGHBORS_VRF_V4;
+    delete: prefix-list MCAST_ALL_ROUTERS_V4;
+    delete: prefix-list LOCAL_FXP0_V4;
+    delete: prefix-list LOOPBACKS_V4;
+    delete: prefix-list VRRP_V4;
+    delete: prefix-list DNS_SERVERS_V4;
+    delete: prefix-list SNMP_TRAP_GROUP_V4;
+    delete: prefix-list RADIUS_SERVERS_V4;
+}

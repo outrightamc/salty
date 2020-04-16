@@ -1,0 +1,14 @@
+{%- if grains.os == "ios" %}
+line vty 0 15
+  session-timeout {{ lines.sessiontimeout }}
+  exec-timeout {{ lines.exectimeout }}
+  logging {{ lines.logging }}
+  history size {{ lines.history }}
+!
+!
+end
+{%- elif "nxos" in grains.os %}
+line vty
+ exec-timeout {{ lines.exectimeout.split()[0] }}
+
+{%- endif %}

@@ -1,0 +1,11 @@
+replace: routing-options {
+    router-id {{ router_id }};
+    autonomous-system {{ autonomous_system }} asdot-notation;
+    {%- if forwarding_table is defined %}
+    forwarding-table {
+        {%- if forwarding_table.export is defined %}
+        export {{ forwarding_table.export }}; 
+        {%- endif %}
+    }
+    {%- endif %}
+}

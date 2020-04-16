@@ -1,0 +1,11 @@
+{%- if grains.os == "ios" %}
+cdp run
+!
+!
+end
+
+{%- elif "nxos" in grains.os %}
+!
+cdp enable
+
+{%- endif %}

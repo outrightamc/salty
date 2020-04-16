@@ -1,0 +1,9 @@
+{% if grains.os == "junos" %}
+security {
+    replace: alg {
+        {%- for a in algs %}
+        {{ a }};
+        {%- endfor %}
+    }
+}
+{% endif %}

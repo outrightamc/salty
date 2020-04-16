@@ -1,0 +1,153 @@
+{%- if grains.os|lower == "ios" %}
+{%- if 'edge_switch' in pillar.roles %}
+ {%- set trunk_map = salt.iosutil.show_int_trunk(expand=True)['out'] %}
+{%- endif %}
+ {%- for intf, intf_config in interfaces.items() %}
+  {%- for unit, unit_config in intf_config.unit.items() %}
+   {%- if unit_config.state is defined and unit_config.state == "absent" %}
+    {%- if unit != '0' %}
+no interface {{ intf }}.{{ unit }}
+    {%- else %}
+default interface {{ intf }}
+interface {{ intf }}
+ shutdown
+    {%- endif %}
+   {%- else %}
+    {%- if unit != '0' %}
+interface {{ intf }}.{{ unit }}
+     {%- if intf_config.vlan_tagging is defined and intf_config.vlan_tagging %}
+ encapsulation dot1Q {{ unit_config.vlan_id }}
+     {%- endif %}
+    {%- else %}
+interface {{ intf }}
+    {%- endif %}
+     {%- if unit_config.description is defined %}
+ description {{ unit_config.description|upper }}
+     {%- endif %}
+    {%- if unit_config.bfd is defined %}
+ bfd interval {{ unit_config.bfd.get("interval", 300) }} min_rx {{ unit_config.bfd.get("minimum_receive", 300) }} multiplier {{ unit_config.bfd.get("multiplier", 3) }}
+    {%- endif %}
+    {%- if unit_config.bandwidth is defined %}
+ bandwidth {{ unit_config.bandwidth * 1000 }}
+    {%- endif %}
+    {%- if unit_config.family.ethernet_switching is defined %}
+     {%- if unit_config.family.ethernet_switching.interface_mode == "trunk" %}
+ switchport trunk encapsulation dot1q
+ switchport mode trunk
+      {%- for v in unit_config.family.ethernet_switching.vlan.members %}
+       {%- set trunked = salt.iosutil.vlan_trunked(trunk_map, intf, v) %}
+       {%- if vlans[v|string]["state"] is defined and vlans[v|string]["state"] == "absent" %}
+        {%- if trunked %}
+ switchport trunk allowed vlan remove {{ v }}
+        {%- endif %}
+       {%- else %}
+        {%- if not trunked %}
+ switchport trunk allowed vlan add {{ v }}
+        {%- endif %}
+       {%- endif %}
+      {%- endfor %}
+     {%- elif unit_config.family.ethernet_switching.interface_mode == "access" %}
+ switchport mode access
+ switchport access vlan {{ unit_config.family.ethernet_switching.vlan.members[0] }}
+     {%- endif %}
+    {%- elif unit_config.family.inet is defined %}
+ no ip redirects
+ no ip proxy-arp
+     {%- if unit_config.family.inet.sampling is defined %}
+      {%- if unit_config.family.inet.sampling.get("input", false) %}
+ ip flow monitor Scrutinizer-FMM sampler Scrutinizer-SM input
+      {%- endif %}
+      {%- if unit_config.family.inet.sampling.get("output", false) %}
+ ip flow monitor Scrutinizer-FMM sampler Scrutinizer-SM output
+      {%- endif %}
+     {%- endif %}
+     {%- set vrf = salt.iosutil.vrf_membership('{}.{}'.format(intf, unit), instances) %}
+     {%- if vrf %}
+ ip vrf forwarding {{ vrf|upper }}
+     {%- endif %}
+     {%- for addr in unit_config.family.inet.address %}
+     {%- set net = salt.ipaddr.ipnetwork(addr.prefix) %}
+ ip address {{ net.ip }} {{ net.netmask }}
+     {%- if addr.vrrp_group is defined %}
+      {%- for vgrp in addr.vrrp_group %}
+ vrrp {{ vgrp.group }} ip {{ vgrp.address }}
+      {%- if vgrp.priority is defined and vgrp.priority != 100 %}
+ vrrp {{ vgrp.group }} priority {{ vgrp.priority }}
+      {%- endif %}
+      {%- endfor %}
+     {%- endif %}
+    {%- endfor %}
+    {%- endif %}
+   {%- endif %}
+!
+  {%- endfor %}
+ {%- endfor %}
+!
+end
+{%- elif grains.os|lower == "junos" %}
+interfaces {
+ {%- for intf, intf_config in interfaces.items() %}
+    {{ intf }} {
+      {%- if intf_config.vlan_tagging is defined and intf_config.vlan_tagging %}
+        vlan-tagging;
+        encapsulation flexible-ethernet-services;
+      {%- endif %}
+      {%- if intf_config.mtu is defined and intf_config.mtu %}
+        mtu {{ intf_config.mtu }};
+      {%- endif %}
+      {%- for unit, unit_config in intf_config.unit.items() %}
+       {%- if unit_config.state is defined and unit_config.state == "absent" %}
+        delete: unit {{ unit }};
+       {%- else %}
+        unit {{ unit }} {
+        {%- if unit_config.encapsulation is defined %}
+            encapsulation {{ unit_config.encapsulation }};
+        {%- endif %}
+        {%- if unit_config.peer_unit is defined %}
+            peer-unit {{ unit_config.peer_unit }};
+        {%- endif %}
+        {%- if unit_config.family.ethernet_switching is defined %}
+            family ethernet-switching {
+              {%- if grains.model in [ 'EX4550-32F' ] %}
+                port-mode {{ unit_config.family.ethernet_switching.interface_mode }};
+              {%- else %}
+                interface-mode {{ unit_config.family.ethernet_switching.interface_mode }};
+              {%- endif %}
+                vlan {
+                    {%- for v in unit_config.family.ethernet_switching.vlan.members %}
+                     {%- if vlans[v|string].state == "present" %}
+                    members {{ v }};
+                     {%- else %}
+                    delete: members {{ v }};
+                     {%- endif %}
+                    {%- endfor %}
+                }
+            }
+        {%- elif unit_config.family.inet is defined %}
+            family inet {
+         {%- for addr in unit_config.family.inet.address %}
+                {%- if addr.vrrp_group is defined %}
+                address {{ addr.prefix }} {
+                    {%- for vgrp in addr.vrrp_group %}
+                    vrrp-group {{ vgrp.group }} {
+                        virtual-address {{ vgrp.address }};
+                        priority {{ vgrp.priority }};
+                    }
+                    {%- endfor %}
+                }
+                {%- else %}
+                address {{ addr.prefix }};
+                {%- endif %}
+         {%- endfor %}
+            }
+        {%- endif %}
+        {%- if unit_config.family.mpls is defined %}
+            family mpls;
+        {%- endif %}
+        }
+       {%- endif %}
+      {%- endfor %}
+    }
+ {%- endfor %}
+}
+{%- endif %}

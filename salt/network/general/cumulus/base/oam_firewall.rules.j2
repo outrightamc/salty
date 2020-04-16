@@ -1,0 +1,9 @@
+[iptables]
+# control-plane: acl ipv4 ACL_OAM inbound
+{%- for pfx in mgmt_nets %}
+-A INPUT -j ACCEPT -p tcp -s {{ pfx }} --dport 22
+-A INPUT -j ACCEPT -p tcp -s {{ pfx }} --dport 8080
+{%- endfor %}
+-A INPUT -j ACCEPT -p tcp -s 169.254.0.0/16 --dport 22
+-A INPUT -j DROP -p tcp --dport 22
+-A INPUT -j DROP -p tcp --dport 8080
