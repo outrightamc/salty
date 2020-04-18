@@ -5,7 +5,6 @@ from lxml import etree
 from tabulate import tabulate
 import pandas
 
-testfds
 
 def parse_addresses():
     
