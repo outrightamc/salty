@@ -3,37 +3,56 @@ import re
 import json
 from lxml import etree 
 from tabulate import tabulate
+import pandas
 
+testfds
 
-def netflow():
-
-    interfaces = __salt__['net.cli']('show configuration interfaces | display set', format='xml')['out']['show configuration interfaces | display set']
-
-    with open("/srv/salt/_modules/xxx.txt", "w") as file:
-        file.write(interfaces)
+def parse_addresses():
     
-    pattern = re.findall(r'ge.{1,7}', interfaces)
-    pattern1 = re.findall(r'dhcp', interfaces)
+#    s = __salt__['net.cli']('show configuration interfaces | display set', format='xml')['out']['show configuration interfaces | display set']
+    s = ['set interfaces ge-0/0/1 unit 0 family inet sampling input','set interfaces ge-0/0/1 unit 0 family inet sampling output','set interfaces ge-0/0/0 unit 0 family inet sampling input','set interfaces ge-0/0/0 unit 0 family inet sampling output','set interfaces ge-0/0/0 unit 0 family inet address 192.168.15.66/24','set interfaces ge-0/0/1 unit 0 family inet dhcp','set interfaces ge-0/0/2 unit 0 family inet address 1.1.1.1/30','set interfaces ge-0/0/2 unit 0 family inet address 192.168.99.1/30']
 
-    return("The original list : " + str(pattern))
+    for sentence in s:
+        return sentence
+
+#    print("interfaces | services")
+#    mydict = {}
+
+#    for i in s:
+#        interface = re.search(r"ge.{1,7}", i)
+#        if "sampling" in i:
+#            service = "sampling"
+#            mydict.setdefault("router",{interface.group(): service})
+#        else:
+#            service = "None"
+#        print(f"{interface.group()} | {service}")
+#    if bool(mydict):
+#        return mydict
+#    return "None"
 
 
 '''
+interface_dict = {}
+return("interfaces | services")
+mydict ={}
+
+s = __salt__['net.cli']('show configuration interfaces | display set', format='xml')['out']['show configuration interfaces | display set']
+
 def netflow():
 
-    test1 = ['cinco', 'dos']
-    test2 = ['nueve', 'siete']
+    for i in s:
+            interface = re.search(r"ge.{1,7}", i)
+            if "sampling" in i:
+                service = "sampling"
+                mydict.setdefault("router",{interface.group(): service})
+            else:
+                service = "None"
+            print(f"{interface.group()} | {service}")
+    if bool(mydict):
+        return mydict
+    return "None"
 
-    interfaces = __salt__['net.cli']('show configuration interfaces | display set', format='xml')['out']['show configuration interfaces | display set']
-
-    with open("/srv/salt/_modules/xxx.txt", "w") as file:
-        file.write(interfaces)
-    
-    regex2 = re.compile(r'sampling')
-    match_reg2 = regex2.findall(interfaces)
-
-    headers = ['value1', 'value2']
-    return (tabulate(test1, headers=headers, tablefmt="orgtbl"))
+return(netflow)
 '''
 '''
 def test():
@@ -53,8 +72,8 @@ def test():
     match_reg2 = regex2.finditer(interfaces)
 
     if match_reg1:
-        for match in match_reg1:
-            output_table1.append(match.group())
+        for match1 in match_reg1:
+            output_table1.append(match1.group())
 
         with open("/srv/salt/_modules/table1.txt", "w") as file:
            for item in output_table1:
@@ -64,14 +83,7 @@ def test():
         for match2 in match_reg2:
             output_table2.append(match2.group())
 
-    return("The original list : " + str(match_reg2))
-
-    return output_table1, output_table2
-
-    return tabulate(
-        output_table1,
-        headers=["value1", "value2", "value3"],
-        tablefmt="orgtbl")
+    return output_table1, output_table2, ("The original list : " + str(match_reg2))
 '''
 '''
     interfaces = __salt__['net.cli']('show configuration interfaces | display set', format='xml')['out']['show configuration interfaces | display set']
